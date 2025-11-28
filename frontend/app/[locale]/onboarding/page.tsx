@@ -12,6 +12,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Loader2, School, User } from "lucide-react";
+import { LanguageSwitcher } from "@/components/shared/language-switcher";
+import { ThemeToggle } from "@/components/shared/theme-toggle";
 import toast from "react-hot-toast";
 
 type OnboardingFormData = {
@@ -184,14 +186,27 @@ export default function OnboardingPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background p-4">
-      <Card className="w-full max-w-2xl">
-        <CardHeader>
-          <CardTitle className="text-2xl">{tOnboarding("title")}</CardTitle>
-          <CardDescription>
-            {tOnboarding("description")} {userEmail && `${tOnboarding("loggedInAs")}: ${userEmail}`}
-          </CardDescription>
-        </CardHeader>
+    <div className="min-h-screen bg-background">
+      {/* Header with Language and Theme Toggle */}
+      <header className="sticky top-0 z-40 bg-card border-b border-border shadow-sm">
+        <div className="flex items-center justify-between h-16 px-4 md:px-6">
+          <h1 className="text-xl font-bold text-foreground">Tilmeedhy - تلميذي</h1>
+          <div className="flex items-center gap-2">
+            <ThemeToggle />
+            <LanguageSwitcher />
+          </div>
+        </div>
+      </header>
+
+      {/* Main Content */}
+      <div className="flex items-center justify-center p-4 min-h-[calc(100vh-4rem)]">
+        <Card className="w-full max-w-2xl">
+          <CardHeader>
+            <CardTitle className="text-2xl">{tOnboarding("title")}</CardTitle>
+            <CardDescription>
+              {tOnboarding("description")} {userEmail && `${tOnboarding("loggedInAs")}: ${userEmail}`}
+            </CardDescription>
+          </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
             {/* Personal Information */}
@@ -345,6 +360,7 @@ export default function OnboardingPage() {
           </form>
         </CardContent>
       </Card>
+      </div>
     </div>
   );
 }
