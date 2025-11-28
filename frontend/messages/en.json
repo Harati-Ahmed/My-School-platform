@@ -110,6 +110,33 @@
     "emailLogin": "Login with Email",
     "phoneLogin": "Login with Phone"
   },
+  "onboarding": {
+    "title": "Welcome! Let's set up your account",
+    "description": "Complete your profile to get started.",
+    "loggedInAs": "Logged in as",
+    "personalInfo": "Personal Information",
+    "schoolInfo": "School Information (Admin)",
+    "schoolInfoDescription": "If you're setting up a school, fill in the school details below. You can skip this if you're joining an existing school.",
+    "fullName": "Full Name",
+    "phoneNumber": "Phone Number",
+    "language": "Language",
+    "theme": "Theme",
+    "schoolName": "School Name",
+    "schoolNameAr": "School Name (Arabic)",
+    "contactEmail": "Contact Email",
+    "contactPhone": "Contact Phone",
+    "schoolAddress": "School Address",
+    "enterFullName": "Enter your full name",
+    "enterSchoolName": "Enter school name",
+    "enterSchoolAddress": "Enter school address",
+    "completeSetup": "Complete Setup",
+    "settingUp": "Setting up...",
+    "profileCreated": "Profile created successfully!",
+    "setupFailed": "Failed to complete setup",
+    "nameRequired": "Name must be at least 2 characters",
+    "schoolNameRequired": "School name is required",
+    "invalidEmail": "Invalid email address"
+  },
   "parent": {
     "dashboard": {
       "title": "Parent Dashboard",

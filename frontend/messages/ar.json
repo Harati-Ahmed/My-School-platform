@@ -110,6 +110,33 @@
     "emailLogin": "تسجيل الدخول بالبريد الإلكتروني",
     "phoneLogin": "تسجيل الدخول بالهاتف"
   },
+  "onboarding": {
+    "title": "مرحباً! دعنا نعد حسابك",
+    "description": "أكمل ملفك الشخصي للبدء.",
+    "loggedInAs": "تم تسجيل الدخول كـ",
+    "personalInfo": "المعلومات الشخصية",
+    "schoolInfo": "معلومات المدرسة (مدير)",
+    "schoolInfoDescription": "إذا كنت تقوم بإعداد مدرسة، املأ تفاصيل المدرسة أدناه. يمكنك تخطي هذا إذا كنت تنضم إلى مدرسة موجودة.",
+    "fullName": "الاسم الكامل",
+    "phoneNumber": "رقم الهاتف",
+    "language": "اللغة",
+    "theme": "المظهر",
+    "schoolName": "اسم المدرسة",
+    "schoolNameAr": "اسم المدرسة (عربي)",
+    "contactEmail": "البريد الإلكتروني للاتصال",
+    "contactPhone": "هاتف الاتصال",
+    "schoolAddress": "عنوان المدرسة",
+    "enterFullName": "أدخل اسمك الكامل",
+    "enterSchoolName": "أدخل اسم المدرسة",
+    "enterSchoolAddress": "أدخل عنوان المدرسة",
+    "completeSetup": "إكمال الإعداد",
+    "settingUp": "جاري الإعداد...",
+    "profileCreated": "تم إنشاء الملف الشخصي بنجاح!",
+    "setupFailed": "فشل إكمال الإعداد",
+    "nameRequired": "يجب أن يكون الاسم على الأقل حرفين",
+    "schoolNameRequired": "اسم المدرسة مطلوب",
+    "invalidEmail": "عنوان بريد إلكتروني غير صحيح"
+  },
   "parent": {
     "dashboard": {
       "title": "لوحة تحكم ولي الأمر",

@@ -28,7 +28,15 @@ export default async function AdminLayout({
     .eq("id", user.id)
     .single();
 
-  if (error || !userProfile || userProfile.role !== "admin") redirect("/login");
+  // If no profile exists, redirect to onboarding
+  if (error || !userProfile) {
+    redirect("/onboarding");
+  }
+
+  // If not admin, redirect to login
+  if (userProfile.role !== "admin") {
+    redirect("/login");
+  }
 
   const navigation = [
     { name: t("common.dashboard"), href: "/admin/dashboard", icon: Home },

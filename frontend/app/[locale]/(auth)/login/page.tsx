@@ -81,7 +81,8 @@ export default function LoginPage() {
           .single();
 
         if (profileError || !userProfile) {
-          toast.error(t("auth.profileLoadError"));
+          // No profile exists, redirect to onboarding
+          router.push("/onboarding");
           return;
         }
 
@@ -124,7 +125,8 @@ export default function LoginPage() {
           .single();
 
         if (profileError || !userProfile) {
-          toast.error(t("auth.profileLoadError"));
+          // No profile exists, redirect to onboarding
+          router.push("/onboarding");
           return;
         }
 

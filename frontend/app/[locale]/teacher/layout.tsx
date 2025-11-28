@@ -29,7 +29,15 @@ export default async function TeacherLayout({
     .eq("id", user.id)
     .single();
 
-  if (error || !userProfile || userProfile.role !== "teacher") redirect("/login");
+  // If no profile exists, redirect to onboarding
+  if (error || !userProfile) {
+    redirect("/onboarding");
+  }
+
+  // If not teacher, redirect to login
+  if (userProfile.role !== "teacher") {
+    redirect("/login");
+  }
 
   const navigation = [
     { name: t("common.dashboard"), href: "/teacher/dashboard", iconName: "Home" },

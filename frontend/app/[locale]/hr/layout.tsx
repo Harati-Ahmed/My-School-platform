@@ -28,7 +28,15 @@ export default async function HRLayout({
     .eq("id", user.id)
     .single();
 
-  if (error || !userProfile || userProfile.role !== "hr") redirect("/login");
+  // If no profile exists, redirect to onboarding
+  if (error || !userProfile) {
+    redirect("/onboarding");
+  }
+
+  // If not hr, redirect to login
+  if (userProfile.role !== "hr") {
+    redirect("/login");
+  }
 
   const navigation = [
     { name: t("common.dashboard"), href: "/hr/dashboard", icon: Home },

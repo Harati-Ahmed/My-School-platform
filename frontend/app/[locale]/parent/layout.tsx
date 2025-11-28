@@ -34,7 +34,13 @@ export default async function ParentLayout({
     .eq("id", user.id)
     .single();
 
-  if (error || !userProfile || userProfile.role !== "parent") {
+  // If no profile exists, redirect to onboarding
+  if (error || !userProfile) {
+    redirect("/onboarding");
+  }
+
+  // If not parent, redirect to login
+  if (userProfile.role !== "parent") {
     redirect("/login");
   }
 

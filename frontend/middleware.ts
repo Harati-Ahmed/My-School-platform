@@ -12,7 +12,7 @@ import { routing } from "./i18n/routing";
  */
 
 // Public routes that don't require authentication
-const publicRoutes = ["/login", "/reset-password", "/"];
+const publicRoutes = ["/login", "/reset-password", "/", "/onboarding"];
 
 // Role-based route prefixes
 const roleRoutes = {
@@ -49,26 +49,51 @@ export default async function middleware(request: NextRequest) {
     return NextResponse.redirect(loginUrl);
   }
   
-  // If authenticated and trying to access login or root, redirect to role-based dashboard
+  // If authenticated and trying to access login or root, check if profile exists
   if (user && (pathWithoutLocale === "/login" || pathWithoutLocale === "/")) {
     try {
-      // Fetch user role from database
+      // Fetch user profile from database
+      const { data: userProfile, error: profileError } = await supabase
+        .from("users")
+        .select("role")
+        .eq("id", user.id)
+        .single();
+      
+      // If no profile exists, redirect to onboarding
+      if (profileError || !userProfile) {
+        const onboardingPath = `/${pathnameLocale || "en"}/onboarding`;
+        return NextResponse.redirect(new URL(onboardingPath, request.url));
+      }
+      
+      // User has profile, redirect to dashboard
+      const role = userProfile.role;
+      const dashboardPath = `/${pathnameLocale || "en"}/${role}/dashboard`;
+      
+      return NextResponse.redirect(new URL(dashboardPath, request.url));
+    } catch (error) {
+      console.error("Error fetching user role:", error);
+      // If error, redirect to onboarding to be safe
+      const onboardingPath = `/${pathnameLocale || "en"}/onboarding`;
+      return NextResponse.redirect(new URL(onboardingPath, request.url));
+    }
+  }
+
+  // Check if user is trying to access protected routes without a profile
+  if (user && !isPublicRoute && pathWithoutLocale !== "/onboarding") {
+    try {
       const { data: userProfile } = await supabase
         .from("users")
         .select("role")
         .eq("id", user.id)
         .single();
       
-      const role = userProfile?.role || "parent";
-      const dashboardPath = `/${pathnameLocale || "en"}/${role}/dashboard`;
-      
-      return NextResponse.redirect(new URL(dashboardPath, request.url));
+      // If no profile, redirect to onboarding
+      if (!userProfile) {
+        const onboardingPath = `/${pathnameLocale || "en"}/onboarding`;
+        return NextResponse.redirect(new URL(onboardingPath, request.url));
+      }
     } catch (error) {
-      console.error("Error fetching user role:", error);
-      // Default to parent dashboard if error occurs
-      return NextResponse.redirect(
-        new URL(`/${pathnameLocale || "en"}/parent/dashboard`, request.url)
-      );
+      // If error checking profile, allow through (will be caught by layout)
     }
   }
   
