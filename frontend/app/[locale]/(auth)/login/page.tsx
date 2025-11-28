@@ -12,6 +12,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { createClient } from "@/lib/supabase/client";
+import { LanguageSwitcher } from "@/components/shared/language-switcher";
+import { ThemeToggle } from "@/components/shared/theme-toggle";
 import toast from "react-hot-toast";
 import { Mail, Phone, Lock, Loader2 } from "lucide-react";
 
@@ -145,17 +147,25 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background p-4">
-      <Card className="w-full max-w-md shadow-2xl">
-        <CardHeader className="text-center space-y-2">
-          <div className="flex items-center justify-center mb-4">
-            <div className="text-4xl font-bold text-primary">
-              Tilmeedhy • تلميذي
+    <div className="min-h-screen bg-background relative">
+      {/* Language and Theme Toggles - Fixed Top Right Corner */}
+      <div className="fixed top-4 right-4 z-50 flex items-center gap-2" dir="ltr">
+        <ThemeToggle />
+        <LanguageSwitcher />
+      </div>
+
+      {/* Main Content */}
+      <div className="flex items-center justify-center p-4 min-h-screen">
+        <Card className="w-full max-w-md shadow-2xl">
+          <CardHeader className="text-center space-y-2">
+            <div className="flex items-center justify-center mb-4">
+              <div className="text-4xl font-bold text-primary">
+                Tilmeedhy • تلميذي
+              </div>
             </div>
-          </div>
-          <CardTitle className="text-2xl">{t("auth.loginTitle")}</CardTitle>
-          <CardDescription>{t("auth.loginDescription")}</CardDescription>
-        </CardHeader>
+            <CardTitle className="text-2xl">{t("auth.loginTitle")}</CardTitle>
+            <CardDescription>{t("auth.loginDescription")}</CardDescription>
+          </CardHeader>
         <CardContent>
           <Tabs
             value={loginMethod}
@@ -299,6 +309,7 @@ export default function LoginPage() {
           </div>
         </CardContent>
       </Card>
+      </div>
     </div>
   );
 }

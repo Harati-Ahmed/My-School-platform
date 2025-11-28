@@ -186,20 +186,15 @@ export default function OnboardingPage() {
   }
 
   return (
-    <div className="min-h-screen bg-background">
-      {/* Header with Language and Theme Toggle */}
-      <header className="sticky top-0 z-40 bg-card border-b border-border shadow-sm">
-        <div className="flex items-center justify-between h-16 px-4 md:px-6">
-          <h1 className="text-xl font-bold text-foreground">Tilmeedhy - تلميذي</h1>
-          <div className="flex items-center gap-2">
-            <ThemeToggle />
-            <LanguageSwitcher />
-          </div>
-        </div>
-      </header>
+    <div className="min-h-screen bg-background relative">
+      {/* Language and Theme Toggles - Fixed Top Right Corner */}
+      <div className="fixed top-4 right-4 z-50 flex items-center gap-2" dir="ltr">
+        <ThemeToggle />
+        <LanguageSwitcher />
+      </div>
 
       {/* Main Content */}
-      <div className="flex items-center justify-center p-4 min-h-[calc(100vh-4rem)]">
+      <div className="flex items-center justify-center p-4 min-h-screen">
         <Card className="w-full max-w-2xl">
           <CardHeader>
             <CardTitle className="text-2xl">{tOnboarding("title")}</CardTitle>
