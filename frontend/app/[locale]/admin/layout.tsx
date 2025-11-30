@@ -4,7 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { LanguageSwitcher } from "@/components/shared/language-switcher";
 import { ThemeToggle } from "@/components/shared/theme-toggle";
 import { AccountMenu } from "@/components/shared/account-menu";
-import { Home, Users, GraduationCap, School, BookOpen, Bell, BarChart, Settings, TrendingUp, Search, Calendar } from "lucide-react";
+import { Home, Users, GraduationCap, School, BookOpen, Bell, BarChart, Settings, TrendingUp, Search, Calendar, Shield, FileText, CreditCard, CheckSquare, FileSpreadsheet } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { getTranslations } from "next-intl/server";
 
@@ -24,7 +24,7 @@ export default async function AdminLayout({
 
   const { data: userProfile, error } = await supabase
     .from("users")
-    .select("role, name, email")
+    .select("role, name, email, school_id")
     .eq("id", user.id)
     .single();
 
@@ -38,7 +38,47 @@ export default async function AdminLayout({
     redirect("/login");
   }
 
+  // Check if user is super admin
+  const isSuperAdmin = userProfile.school_id === null;
+
   const navigation = [
+    ...(isSuperAdmin ? [
+      {
+        name: t("admin.superAdmin.title"),
+        href: "/admin/super-admin",
+        icon: Shield,
+      },
+      {
+        name: t("admin.superAdmin.allAdmins"),
+        href: "/admin/super-admin/admins",
+        icon: Users,
+      },
+      {
+        name: t("admin.superAdmin.allUsers"),
+        href: "/admin/super-admin/users",
+        icon: Users,
+      },
+      {
+        name: t("admin.superAdmin.platformAuditLogs"),
+        href: "/admin/super-admin/audit-logs",
+        icon: FileText,
+      },
+      {
+        name: t("admin.superAdmin.subscriptionManagement"),
+        href: "/admin/super-admin/subscriptions",
+        icon: CreditCard,
+      },
+      {
+        name: t("admin.superAdmin.bulkOperations"),
+        href: "/admin/super-admin/bulk-operations",
+        icon: CheckSquare,
+      },
+      {
+        name: t("admin.superAdmin.dataExport"),
+        href: "/admin/super-admin/data-export",
+        icon: FileSpreadsheet,
+      },
+    ] : []),
     { name: t("common.dashboard"), href: "/admin/dashboard", icon: Home },
     { name: t("navigation.teachers"), href: "/admin/teachers", icon: Users },
     { name: t("navigation.parents"), href: "/admin/parents", icon: Users },

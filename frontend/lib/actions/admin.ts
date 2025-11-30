@@ -16,6 +16,7 @@ import {
 } from "@/lib/cache/teacher-assignments-cache";
 
 type SupabaseAdminClient = Awaited<ReturnType<typeof createClient>>;
+type SupabaseServiceClient = ReturnType<typeof import("@/lib/supabase/service").createServiceRoleClient>;
 
 /**
  * Admin Server Actions
@@ -129,6 +130,7 @@ export interface SchoolSettingsFormData {
 /**
  * Get authenticated admin user
  * Uses session cache to avoid repeated database queries
+ * Returns super admin status (school_id = NULL)
  */
 async function getAuthenticatedAdmin() {
   const supabase = await createClient();
@@ -180,6 +182,24 @@ async function getAuthenticatedAdmin() {
     isSuperAdmin,
     email: userProfile.email
   };
+}
+
+/**
+ * Get Supabase client for admin operations
+ * Uses service role for super admin to bypass RLS
+ * Uses regular client for regular admins
+ */
+async function getAdminClient(): Promise<SupabaseAdminClient | SupabaseServiceClient> {
+  const { isSuperAdmin } = await getAuthenticatedAdmin();
+  
+  if (isSuperAdmin) {
+    // Super admin uses service role to bypass RLS
+    const { createServiceRoleClient } = await import("@/lib/supabase/service");
+    return createServiceRoleClient();
+  } else {
+    // Regular admin uses normal client (RLS applies)
+    return await createClient();
+  }
 }
 
 /**
@@ -565,8 +585,8 @@ export async function getDashboardStats(): Promise<DashboardStats> {
   console.time(perfLabel);
   try {
     const authStart = performance.now();
-    const { schoolId } = await getAuthenticatedAdmin();
-    const supabase = await createClient();
+    const { schoolId, isSuperAdmin } = await getAuthenticatedAdmin();
+    const supabase = await getAdminClient();
     console.timeLog(perfLabel, `Auth: ${(performance.now() - authStart).toFixed(2)}ms`);
 
     const now = new Date();
@@ -576,7 +596,9 @@ export async function getDashboardStats(): Promise<DashboardStats> {
     sixtyDaysAgo.setDate(now.getDate() - 60);
 
     // Get basic counts from materialized view (much faster than live queries)
+    // Super admin sees aggregated stats from all schools, regular admin sees their school's
     const countsStart = performance.now();
+    
     const [
       { data: overviewStats },
       { count: recentStudentAdds },
@@ -585,50 +607,66 @@ export async function getDashboardStats(): Promise<DashboardStats> {
       { count: prevTeacherAdds },
     ] = await Promise.all([
       // Use enhanced materialized view for all basic counts
-      supabase
-        .from("school_overview_stats_view")
-        .select("active_student_count, active_teacher_count, active_parent_count, active_class_count, active_subject_count")
-        .eq("school_id", schoolId)
-        .single(),
+      isSuperAdmin
+        ? supabase
+            .from("school_overview_stats_view")
+            .select("active_student_count, active_teacher_count, active_parent_count, active_class_count, active_subject_count")
+        : supabase
+            .from("school_overview_stats_view")
+            .select("active_student_count, active_teacher_count, active_parent_count, active_class_count, active_subject_count")
+            .eq("school_id", schoolId!)
+            .single(),
       // Growth calculations (need date filtering, can't use materialized view)
-      supabase
-        .from("students")
-        .select("*", { count: "exact", head: true })
-        .eq("school_id", schoolId)
-        .gte("created_at", thirtyDaysAgo.toISOString()),
-      supabase
-        .from("students")
-        .select("*", { count: "exact", head: true })
-        .eq("school_id", schoolId)
-        .gte("created_at", sixtyDaysAgo.toISOString())
-        .lt("created_at", thirtyDaysAgo.toISOString()),
-      supabase
-        .from("users")
-        .select("*", { count: "exact", head: true })
-        .eq("school_id", schoolId)
-        .eq("role", "teacher")
-        .gte("created_at", thirtyDaysAgo.toISOString()),
-      supabase
-        .from("users")
-        .select("*", { count: "exact", head: true })
-        .eq("school_id", schoolId)
-        .eq("role", "teacher")
-        .gte("created_at", sixtyDaysAgo.toISOString())
-        .lt("created_at", thirtyDaysAgo.toISOString()),
+      (async () => {
+        let query = supabase.from("students").select("*", { count: "exact", head: true });
+        if (!isSuperAdmin && schoolId) query = query.eq("school_id", schoolId);
+        return query.gte("created_at", thirtyDaysAgo.toISOString());
+      })(),
+      (async () => {
+        let query = supabase.from("students").select("*", { count: "exact", head: true });
+        if (!isSuperAdmin && schoolId) query = query.eq("school_id", schoolId);
+        return query.gte("created_at", sixtyDaysAgo.toISOString()).lt("created_at", thirtyDaysAgo.toISOString());
+      })(),
+      (async () => {
+        let query = supabase.from("users").select("*", { count: "exact", head: true }).eq("role", "teacher");
+        if (!isSuperAdmin && schoolId) query = query.eq("school_id", schoolId);
+        return query.gte("created_at", thirtyDaysAgo.toISOString());
+      })(),
+      (async () => {
+        let query = supabase.from("users").select("*", { count: "exact", head: true }).eq("role", "teacher");
+        if (!isSuperAdmin && schoolId) query = query.eq("school_id", schoolId);
+        return query.gte("created_at", sixtyDaysAgo.toISOString()).lt("created_at", thirtyDaysAgo.toISOString());
+      })(),
     ]);
 
     // Extract counts from materialized view
-    const totalStudents = overviewStats?.active_student_count || 0;
-    const totalTeachers = overviewStats?.active_teacher_count || 0;
-    const totalParents = overviewStats?.active_parent_count || 0;
-    const activeClasses = overviewStats?.active_class_count || 0;
-    const totalSubjects = overviewStats?.active_subject_count || 0;
+    // For super admin, aggregate all schools; for regular admin, use their school's stats
+    let totalStudents = 0;
+    let totalTeachers = 0;
+    let totalParents = 0;
+    let activeClasses = 0;
+    let totalSubjects = 0;
+    
+    if (isSuperAdmin && Array.isArray(overviewStats)) {
+      // Aggregate all schools
+      totalStudents = overviewStats.reduce((sum, s) => sum + (s.active_student_count || 0), 0);
+      totalTeachers = overviewStats.reduce((sum, s) => sum + (s.active_teacher_count || 0), 0);
+      totalParents = overviewStats.reduce((sum, s) => sum + (s.active_parent_count || 0), 0);
+      activeClasses = overviewStats.reduce((sum, s) => sum + (s.active_class_count || 0), 0);
+      totalSubjects = overviewStats.reduce((sum, s) => sum + (s.active_subject_count || 0), 0);
+    } else if (overviewStats && !Array.isArray(overviewStats)) {
+      totalStudents = overviewStats.active_student_count || 0;
+      totalTeachers = overviewStats.active_teacher_count || 0;
+      totalParents = overviewStats.active_parent_count || 0;
+      activeClasses = overviewStats.active_class_count || 0;
+      totalSubjects = overviewStats.active_subject_count || 0;
+    }
     
     console.timeLog(perfLabel, `Count queries: ${(performance.now() - countsStart).toFixed(2)}ms (using materialized view)`);
 
     // Get recent audit logs for activity (reduced to 5 for faster load)
     const auditStart = performance.now();
-    const { data: recentLogs } = await supabase
+    let auditQuery = supabase
       .from("audit_logs")
       .select(
         `
@@ -639,8 +677,14 @@ export async function getDashboardStats(): Promise<DashboardStats> {
         details,
         user:users!inner(name, role)
       `
-      )
-      .eq("school_id", schoolId)
+      );
+    
+    // Super admin sees all audit logs, regular admin sees only their school's
+    if (!isSuperAdmin && schoolId) {
+      auditQuery = auditQuery.eq("school_id", schoolId);
+    }
+    
+    const { data: recentLogs } = await auditQuery
       .order("created_at", { ascending: false })
       .limit(5); // Reduced from 10 to 5 for faster query
     console.timeLog(perfLabel, `Audit logs: ${(performance.now() - auditStart).toFixed(2)}ms`);
@@ -1314,8 +1358,12 @@ export async function createUser(formData: UserFormData) {
   console.time(perfLabel);
   try {
     const authStart = performance.now();
-    const { schoolId } = await getAuthenticatedAdmin();
-    const supabase = await createClient();
+    const { schoolId, isSuperAdmin } = await getAuthenticatedAdmin();
+    const supabase = await getAdminClient();
+    
+    // Super admin can create users for any school, regular admin only their school
+    // For now, regular admin creates users in their own school
+    const targetSchoolId = schoolId;
     console.timeLog(perfLabel, `Auth: ${(performance.now() - authStart).toFixed(2)}ms`);
 
     // Create auth user
@@ -1340,7 +1388,7 @@ export async function createUser(formData: UserFormData) {
         email: formData.email,
         phone: formData.phone,
         role: formData.role,
-        school_id: schoolId,
+        school_id: targetSchoolId,
       })
       .select()
       .single();
@@ -1350,7 +1398,7 @@ export async function createUser(formData: UserFormData) {
 
     if (formData.role === "teacher") {
       const syncStart = performance.now();
-      await syncTeacherSubjects(supabase, data.id, formData.subjectIds, schoolId);
+      await syncTeacherSubjects(supabase, data.id, formData.subjectIds, targetSchoolId);
       // Cache will be populated on first fetch, no need to invalidate for new teacher
       console.timeLog(perfLabel, `Teacher subjects sync: ${(performance.now() - syncStart).toFixed(2)}ms`);
     }
@@ -3178,8 +3226,8 @@ export async function getStudents(options?: {
   console.timeLog(perfLabel, `[page=${page}, size=${pageSize}] Starting`);
   try {
     const authStart = performance.now();
-    const { schoolId } = await getAuthenticatedAdmin();
-    const supabase = await createClient();
+    const { schoolId, isSuperAdmin } = await getAuthenticatedAdmin();
+    const supabase = await getAdminClient();
     console.timeLog(perfLabel, `Auth: ${(performance.now() - authStart).toFixed(2)}ms`);
 
     const studentsStart = performance.now();
@@ -3192,9 +3240,14 @@ export async function getStudents(options?: {
         parent:users(id, name, email, phone)
       `,
         { count: "exact" }
-      )
-      .eq("school_id", schoolId)
-      .order("created_at", { ascending: false });
+      );
+    
+    // Super admin can see all students, regular admin sees their school's
+    if (!isSuperAdmin && schoolId) {
+      query = query.eq("school_id", schoolId);
+    }
+    
+    query = query.order("created_at", { ascending: false });
 
     // Add search filter if provided
     if (search) {
@@ -3376,19 +3429,25 @@ export async function bulkImportStudents(students: StudentFormData[]) {
  */
 export async function getClasses() {
   try {
-    const { schoolId } = await getAuthenticatedAdmin();
-    const supabase = await createClient();
+    const { schoolId, isSuperAdmin } = await getAuthenticatedAdmin();
+    const supabase = await getAdminClient();
 
-    // Fetch classes with main teacher info (simplified query - removed invalid students count)
-    const { data: classes, error: classesError } = await supabase
+    // Fetch classes with main teacher info
+    // Super admin can see all classes, regular admin sees their school's
+    let query = supabase
       .from("classes")
       .select(
         `
         *,
         main_teacher:users!main_teacher_id(id, name)
       `
-      )
-      .eq("school_id", schoolId)
+      );
+    
+    if (!isSuperAdmin && schoolId) {
+      query = query.eq("school_id", schoolId);
+    }
+    
+    const { data: classes, error: classesError } = await query
       .order("grade_level", { ascending: true });
 
     if (classesError) {
@@ -3433,8 +3492,8 @@ export async function getClasses() {
  */
 export async function createClass(formData: ClassFormData) {
   try {
-    const { schoolId } = await getAuthenticatedAdmin();
-    const supabase = await createClient();
+    const { schoolId, isSuperAdmin } = await getAuthenticatedAdmin();
+    const supabase = await getAdminClient();
 
     const { data, error } = await supabase
       .from("classes")
@@ -3538,11 +3597,12 @@ export async function deleteClass(classId: string, className: string) {
  */
 export async function getSubjects() {
   try {
-    const { schoolId } = await getAuthenticatedAdmin();
-    const supabase = await createClient();
+    const { schoolId, isSuperAdmin } = await getAuthenticatedAdmin();
+    const supabase = await getAdminClient();
 
     // Get both global subjects (school_id IS NULL) and school-specific subjects
-    const { data, error } = await supabase
+    // Super admin can see all subjects, regular admin sees their school's + global
+    let query = supabase
       .from("subjects")
       .select(
         `
@@ -3550,8 +3610,17 @@ export async function getSubjects() {
         class:classes(id, name, grade_level),
         teacher:users(id, name)
       `
-      )
-      .or(`school_id.is.null,school_id.eq.${schoolId}`)
+      );
+    
+    if (isSuperAdmin) {
+      // Super admin sees all subjects
+      query = query.order("school_id", { ascending: true, nullsFirst: false });
+    } else {
+      // Regular admin sees global + their school's subjects
+      query = query.or(`school_id.is.null,school_id.eq.${schoolId}`);
+    }
+    
+    const { data, error } = await query
       .order("school_id", { ascending: true, nullsFirst: false })
       .order("name", { ascending: true });
 
@@ -3569,7 +3638,7 @@ export async function getSubjects() {
 export async function createSubject(formData: SubjectFormData) {
   try {
     const { schoolId: adminSchoolId, isSuperAdmin } = await getAuthenticatedAdmin();
-    const supabase = await createClient();
+    const supabase = await getAdminClient();
 
     // If school_id is explicitly set to null, create global subject
     // Super admins can create subjects for any school or global subjects
@@ -3958,8 +4027,8 @@ export async function getAuditLogs(filters?: {
   limit?: number;
 }) {
   try {
-    const { schoolId } = await getAuthenticatedAdmin();
-    const supabase = await createClient();
+    const { schoolId, isSuperAdmin } = await getAuthenticatedAdmin();
+    const supabase = await getAdminClient();
 
     let query = supabase
       .from("audit_logs")
@@ -3968,9 +4037,14 @@ export async function getAuditLogs(filters?: {
         *,
         user:users(id, name, role)
       `
-      )
-      .eq("school_id", schoolId)
-      .order("created_at", { ascending: false });
+      );
+    
+    // Super admin sees all audit logs, regular admin sees only their school's
+    if (!isSuperAdmin && schoolId) {
+      query = query.eq("school_id", schoolId);
+    }
+    
+    query = query.order("created_at", { ascending: false });
 
     if (filters?.action) {
       query = query.eq("action", filters.action);

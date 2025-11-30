@@ -2,6 +2,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { getTranslations } from "next-intl/server";
 import { getDashboardStats } from "@/lib/actions/admin";
 import { RecentActivity } from "@/components/admin/recent-activity";
+import { createClient } from "@/lib/supabase/server";
+import { redirect } from "next/navigation";
 import {
   Users,
   GraduationCap,
@@ -14,6 +16,24 @@ import {
 
 export default async function AdminDashboard() {
   const t = await getTranslations();
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  
+  // Check if user is super admin and redirect to super admin dashboard
+  if (user) {
+    const { data: userProfile } = await supabase
+      .from("users")
+      .select("school_id")
+      .eq("id", user.id)
+      .single();
+    
+    if (userProfile?.school_id === null) {
+      // Super admin - redirect to dedicated super admin dashboard
+      redirect("/admin/super-admin");
+    }
+  }
+  
+  let isSuperAdmin = false;
   
   let stats;
   try {
@@ -74,6 +94,11 @@ export default async function AdminDashboard() {
         <p className="text-muted-foreground mt-2">
           {t("admin.dashboard.welcomeMessage")}
         </p>
+        {isSuperAdmin && (
+          <p className="text-sm text-primary mt-1 font-medium">
+            🔑 Super Admin Mode - Full Access
+          </p>
+        )}
       </div>
 
       {/* Statistics Cards */}

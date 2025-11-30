@@ -111,6 +111,8 @@ export async function createUserProfileOnboarding(formData: {
     });
 
     // Create user profile
+    // Note: If the create_audit_log function is missing, the trigger will fail
+    // The user needs to run the migration: 20241207_create_audit_log_function.sql
     const { data: profile, error: profileError } = await serviceClient
       .from("users")
       .insert({
@@ -129,6 +131,16 @@ export async function createUserProfileOnboarding(formData: {
 
     if (profileError) {
       console.error("Failed to create user profile:", profileError);
+      
+      // If error is about missing function, provide helpful message with migration instructions
+      if (profileError.message?.includes('create_audit_log') || 
+          profileError.message?.includes('function') && profileError.message?.includes('does not exist')) {
+        return { 
+          data: null, 
+          error: "Database configuration error: The audit log function is missing. Please run the migration SQL in your Supabase dashboard. See: frontend/supabase/migrations/20241207_create_audit_log_function.sql" 
+        };
+      }
+      
       return { data: null, error: profileError.message };
     }
 
