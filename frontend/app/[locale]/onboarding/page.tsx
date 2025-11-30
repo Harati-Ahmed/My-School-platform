@@ -7,6 +7,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/client";
+import { createSchoolOnboarding, createUserProfileOnboarding } from "@/lib/actions/onboarding";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -122,46 +123,35 @@ export default function OnboardingPage() {
 
       let schoolId: string | null = null;
 
-      // If admin and school info provided, create school first
+      // If admin and school info provided, create school first using server action
       if (data.school_name) {
-        const { data: school, error: schoolError } = await supabase
-          .from("schools")
-          .insert({
-            name: data.school_name,
-            name_ar: data.school_name_ar || data.school_name,
-            contact_email: data.school_contact_email || user.email || "",
-            contact_phone: data.school_contact_phone || data.phone || "",
-            address: data.school_address,
-            subscription_status: "active",
-            is_active: true,
-          })
-          .select("id")
-          .single();
-
-        if (schoolError) {
-          throw new Error(`Failed to create school: ${schoolError.message}`);
-        }
-
-        schoolId = school.id;
-      }
-
-      // Create user profile
-      const { error: profileError } = await supabase
-        .from("users")
-        .insert({
-          id: user.id,
-          name: data.name,
-          email: user.email || "",
-          phone: data.phone,
-          role: userRole || "admin",
-          school_id: schoolId,
-          language_preference: data.language_preference,
-          theme_preference: data.theme_preference,
-          is_active: true,
+        const schoolResult = await createSchoolOnboarding({
+          name: data.school_name,
+          name_ar: data.school_name_ar,
+          contact_email: data.school_contact_email || user.email || "",
+          contact_phone: data.school_contact_phone || data.phone,
+          address: data.school_address,
         });
 
-      if (profileError) {
-        throw new Error(`Failed to create profile: ${profileError.message}`);
+        if (schoolResult.error || !schoolResult.data) {
+          throw new Error(`Failed to create school: ${schoolResult.error || "Unknown error"}`);
+        }
+
+        schoolId = schoolResult.data.id;
+      }
+
+      // Create user profile using server action
+      const profileResult = await createUserProfileOnboarding({
+        name: data.name,
+        phone: data.phone,
+        language_preference: data.language_preference,
+        theme_preference: data.theme_preference,
+        role: userRole || "admin",
+        school_id: schoolId || undefined,
+      });
+
+      if (profileResult.error || !profileResult.data) {
+        throw new Error(`Failed to create profile: ${profileResult.error || "Unknown error"}`);
       }
 
       toast.success(tOnboarding("profileCreated"));
